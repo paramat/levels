@@ -12,6 +12,7 @@ local UNDERFAC = 0.0001
 local UNDEROFF = -0.2
 local YWAT = 1
 local YLAVA = -528
+local LUXCHA = 1 / 9 ^ 3
 
 -- Noise parameters
 
@@ -27,6 +28,39 @@ local np_terrain = {
 	lacunarity = 2.0,
 	--flags = ""
 }
+
+-- Nodes
+ 
+-- Dummy lux ore so that lux ore light spread ABM only runs once per lux node
+minetest.register_node("levels:luxoff", {
+	description = "Dark Lux Ore",
+	tiles = {"levels_luxore.png"},
+	light_source = 14,
+	groups = {immortal=1},
+	sounds = default.node_sound_glass_defaults(),
+})
+
+minetest.register_node("levels:luxore", {
+	description = "Lux Ore",
+	tiles = {"levels_luxore.png"},
+	light_source = 14,
+	groups = {cracky=3},
+	sounds = default.node_sound_glass_defaults(),
+})
+ 
+-- ABM to spread lux ore light
+-- Luxoff is only placed above stone to stop droop when replaced with luxore:
+-- .. and data[(vi - ystride)] == c_stone then
+
+minetest.register_abm({
+	nodenames = {"levels:luxoff"},
+	interval = 7,
+	chance = 1,
+	action = function(pos, node)
+		minetest.remove_node(pos)
+		minetest.place_node(pos, {name="levels:luxore"})
+	end,
+})
 
 -- Stuff
 
@@ -57,7 +91,11 @@ minetest.register_on_generated(function(minp, maxp, seed)
 	local c_water = minetest.get_content_id("default:water_source")
 	local c_lava  = minetest.get_content_id("default:lava_source")
 	
+	local c_luxoff  = minetest.get_content_id("levels:luxoff")
+	local c_luxore  = minetest.get_content_id("levels:luxore")
+
 	local sidelen = x1 - x0 + 1
+	local ystride = sidelen + 32
 	local chulens3d = {x=sidelen, y=sidelen, z=sidelen}
 	local minpos3d = {x=x0, y=y0, z=z0}
 	
@@ -86,7 +124,12 @@ minetest.register_on_generated(function(minp, maxp, seed)
 
 				local density = n_terrain + grad
 				if density > 0 then
-					data[vi] = c_stone
+					if math.random() < LUXCHA and y < YSURFMIN
+					and density < 0.01 and data[(vi - ystride)] == c_stone then
+						data[vi] = c_luxoff
+					else
+						data[vi] = c_stone
+					end
 				elseif y > YSURFMIN and y <= YWAT then
 					data[vi] = c_water
 				elseif y <= YLAVA then
