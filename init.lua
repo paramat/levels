@@ -1,13 +1,17 @@
 -- Parameters
 
 local TERSCA = 96
-local YFLOATCEN = 512
+local FLOATPER = 512
+local FLOATFAC = 2
+local FLOATOFF = -0.2
 local YSURFMAX = 256
 local YSURFCEN = 0
 local YSURFMIN = -256
 local YUNDERCEN = -512
+local UNDERFAC = 0.0001
+local UNDEROFF = -0.2
 local YWAT = 1
-local YLAVA = YUNDERCEN - TERSCA / 4
+local YLAVA = -528
 
 -- Noise parameters
 
@@ -23,6 +27,10 @@ local np_terrain = {
 	lacunarity = 2.0,
 	--flags = ""
 }
+
+-- Stuff
+
+local floatper = math.pi / FLOATPER
 
 -- Initialize noise objects to nil
 
@@ -63,18 +71,17 @@ minetest.register_on_generated(function(minp, maxp, seed)
 			local vi = area:index(x0, y, z)
 			for x = x0, x1 do
 				local n_terrain = nvals_terrain[ni3d]
-				local grad
-
-				if y > YFLOATCEN then
-					grad = (YFLOATCEN - y) / TERSCA
-				elseif y > YSURFMAX and y <= YFLOATCEN then
-					grad = (y - YFLOATCEN) / TERSCA
-				elseif y >= YSURFMIN and y <= YSURFMAX then
-					grad = (YSURFCEN - y) / TERSCA
-				elseif y >= YUNDERCEN and y < YSURFMIN then
-					grad = (y - YUNDERCEN) / TERSCA
-				elseif y < YUNDERCEN then
-					grad = (YUNDERCEN - y) / TERSCA
+				local grad = (YSURFCEN - y) / TERSCA
+				if y > YSURFMAX then
+					grad = math.max(
+						-FLOATFAC * math.abs(math.cos((y - YSURFMAX) * floatper)),
+						grad
+					)
+				elseif y < YSURFMIN then
+					grad = math.min(
+						UNDERFAC * (y - YUNDERCEN) ^ 2 + UNDEROFF,
+						grad
+					)
 				end
 
 				local density = n_terrain + grad
