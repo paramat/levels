@@ -1,17 +1,22 @@
 -- Parameters
 
 local TERSCA = 96
+local TSPIKE = 1.1
+local SPIKEAMP = 1000
+
 local FLOATPER = 512
 local FLOATFAC = 2
 local FLOATOFF = -0.2
+
 local YSURFMAX = 256
 local YSURFCEN = 0
+local YWAT = 1
 local YSURFMIN = -256
+
 local YUNDERCEN = -512
+local YLAVA = -528
 local UNDERFAC = 0.0001
 local UNDEROFF = -0.2
-local YWAT = 1
-local YLAVA = -528
 local LUXCHA = 1 / 9 ^ 3
 
 -- Noise parameters
@@ -27,6 +32,19 @@ local np_terrain = {
 	persist = 0.63,
 	lacunarity = 2.0,
 	--flags = ""
+}
+
+-- 2D noise
+
+local np_spike = {
+	offset = 0,
+	scale = 1,
+	spread = {x=64, y=64, z=64},
+	seed = -188900,
+	octaves = 3,
+	persist = 0.5,
+	lacunarity = 2.0,
+	flags = "noeased"
 }
 
 -- Nodes
@@ -54,11 +72,11 @@ minetest.register_node("levels:luxore", {
 
 minetest.register_abm({
 	nodenames = {"levels:luxoff"},
-	interval = 7,
+	interval = 5,
 	chance = 1,
 	action = function(pos, node)
-		minetest.remove_node(pos)
-		minetest.place_node(pos, {name="levels:luxore"})
+		--minetest.remove_node(pos)
+		--minetest.place_node(pos, {name="levels:luxore"})
 	end,
 })
 
@@ -69,6 +87,7 @@ local floatper = math.pi / FLOATPER
 -- Initialize noise objects to nil
 
 local nobj_terrain = nil
+local nobj_spike = nil
 
 -- On generated function
 
@@ -87,29 +106,43 @@ minetest.register_on_generated(function(minp, maxp, seed)
 	local area = VoxelArea:new{MinEdge=emin, MaxEdge=emax}
 	local data = vm:get_data()
 	
-	local c_stone = minetest.get_content_id("default:stone")
-	local c_water = minetest.get_content_id("default:water_source")
-	local c_lava  = minetest.get_content_id("default:lava_source")
+	local c_stone  = minetest.get_content_id("default:stone")
+	local c_water  = minetest.get_content_id("default:water_source")
+	local c_lava   = minetest.get_content_id("default:lava_source")
 	
-	local c_luxoff  = minetest.get_content_id("levels:luxoff")
-	local c_luxore  = minetest.get_content_id("levels:luxore")
+	local c_luxoff = minetest.get_content_id("levels:luxoff")
+	local c_luxore = minetest.get_content_id("levels:luxore")
 
 	local sidelen = x1 - x0 + 1
 	local ystride = sidelen + 32
+	--local zstride = ystride ^ 2
 	local chulens3d = {x=sidelen, y=sidelen, z=sidelen}
+	local chulens2d = {x=sidelen, y=sidelen, z=1}
 	local minpos3d = {x=x0, y=y0, z=z0}
+	local minpos2d = {x=x0, y=z0}
 	
 	local nobj_terrain = nobj_terrain or minetest.get_perlin_map(np_terrain, chulens3d)
+	local nobj_spike = nobj_spike or minetest.get_perlin_map(np_spike, chulens2d)
 	
 	local nvals_terrain = nobj_terrain:get3dMap_flat(minpos3d)
+	local nvals_spike = nobj_spike:get2dMap_flat(minpos2d)
 
 	local ni3d = 1
+	local ni2d = 1
 	for z = z0, z1 do
 		for y = y0, y1 do
 			local vi = area:index(x0, y, z)
 			for x = x0, x1 do
 				local n_terrain = nvals_terrain[ni3d]
-				local grad = (YSURFCEN - y) / TERSCA
+				local n_spike = nvals_spike[ni2d]
+				local spikeoff = 0
+				if n_spike > TSPIKE then
+					spikeoff = (n_spike - TSPIKE) ^ 4 * SPIKEAMP
+				elseif n_spike < -TSPIKE then
+					spikeoff = -((-TSPIKE - n_spike) ^ 4 * SPIKEAMP)
+				end
+
+				local grad = (YSURFCEN - y) / TERSCA + spikeoff
 				if y > YSURFMAX then
 					grad = math.max(
 						-FLOATFAC * math.abs(math.cos((y - YSURFMAX) * floatper)),
@@ -137,9 +170,12 @@ minetest.register_on_generated(function(minp, maxp, seed)
 				end
 
 				ni3d = ni3d + 1
+				ni2d = ni2d + 1
 				vi = vi + 1
 			end
+			ni2d = ni2d - sidelen
 		end
+		ni2d = ni2d + sidelen
 	end
 	
 	vm:set_data(data)

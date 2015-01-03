@@ -1,4 +1,4 @@
-levels 0.2.1 by paramat
+levels 0.2.2 by paramat
 For Minetest 0.4.11 stable or later
 Depends default
 Licenses: Code WTFPL
