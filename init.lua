@@ -1,9 +1,9 @@
 -- Parameters
 
 local TERSCA = 96
-local TSPIKE = 1.1
+local TSPIKE = 1.2
 local SPIKEAMP = 2000
-local TSTONE = 0.03
+local TSTONE = 0.04
 local STABLE = 2
 
 local FLOATPER = 512
@@ -11,9 +11,9 @@ local FLOATFAC = 2
 local FLOATOFF = -0.2
 
 local YSURFMAX = 256
-local YSURFCEN = 0
 local YSAND = 4
-local YWAT = 1
+local YWATER = 1
+local YSURFCEN = 0
 local YSURFMIN = -256
 
 local YUNDERCEN = -512
@@ -59,6 +59,13 @@ minetest.register_node("levels:grass", {
 	sounds = default.node_sound_dirt_defaults({
 		footstep = {name="default_grass_footstep", gain=0.25},
 	}),
+})
+
+minetest.register_node("levels:dirt", {
+	description = "Dirt",
+	tiles = {"default_dirt.png"},
+	groups = {crumbly=3},
+	sounds = default.node_sound_dirt_defaults(),
 })
 
 -- Dummy lux ore so that lux ore light spread ABM only runs once per lux node
@@ -117,19 +124,20 @@ minetest.register_on_generated(function(minp, maxp, seed)
 	local area = VoxelArea:new{MinEdge=emin, MaxEdge=emax}
 	local data = vm:get_data()
 	
-	local c_stone  = minetest.get_content_id("default:stone")
+	local c_stone = minetest.get_content_id("default:stone")
 	local c_sand  = minetest.get_content_id("default:sand")
-	local c_water  = minetest.get_content_id("default:water_source")
-	local c_lava   = minetest.get_content_id("default:lava_source")
+	local c_water = minetest.get_content_id("default:water_source")
+	local c_lava  = minetest.get_content_id("default:lava_source")
 	
-	local c_grass = minetest.get_content_id("levels:grass")
+	local c_grass  = minetest.get_content_id("levels:grass")
+	local c_dirt   = minetest.get_content_id("levels:dirt")
 	local c_luxoff = minetest.get_content_id("levels:luxoff")
 	local c_luxore = minetest.get_content_id("levels:luxore")
 
 	local sidelen = x1 - x0 + 1
 	local ystride = sidelen + 32
 	--local zstride = ystride ^ 2
-	local chulens3d = {x=sidelen, y=sidelen+16, z=sidelen}
+	local chulens3d = {x=sidelen, y=sidelen+17, z=sidelen}
 	local chulens2d = {x=sidelen, y=sidelen, z=1}
 	local minpos3d = {x=x0, y=y0-16, z=z0}
 	local minpos2d = {x=x0, y=z0}
@@ -143,15 +151,17 @@ minetest.register_on_generated(function(minp, maxp, seed)
 	local ni3d = 1
 	local ni2d = 1
 	local stable = {}
+	local under = {}
 	for z = z0, z1 do
 		for x = x0, x1 do
 			local si = x - x0 + 1
 			stable[si] = 0
 		end
-		for y = y0 - 16, y1 do
+		for y = y0 - 16, y1 + 1 do
 			local vi = area:index(x0, y, z)
 			for x = x0, x1 do
 				local si = x - x0 + 1
+				local viu = vi - ystride
 
 				local n_terrain = nvals_terrain[ni3d]
 				local n_spike = nvals_spike[ni2d]
@@ -171,38 +181,63 @@ minetest.register_on_generated(function(minp, maxp, seed)
 						grad
 					)
 				end
-
 				local density = n_terrain + grad
+
 				if y < y0 then
 					if density >= TSTONE then
 						stable[si] = stable[si] + 1
 					elseif density <= 0 then
 						stable[si] = 0
 					end
+					if y == y0 - 1 then
+						local nodid = data[vi]
+						if nodid == c_stone
+						or nodid == c_sand
+						or nodid == c_grass
+						or nodid == c_dirt
+						or nodid == c_luxoff then
+							stable[si] = STABLE
+						end
+					end
 				elseif y >= y0 and y <= y1 then
 					if density >= TSTONE then
 						if math.random() < LUXCHA and y < YSURFMIN
-						and density < 0.01 and data[(vi - ystride)] == c_stone then
+						and density < 0.01 and data[viu] == c_stone then
 							data[vi] = c_luxoff
 						else
 							data[vi] = c_stone
 						end
 						stable[si] = stable[si] + 1
+						under[si] = 0
 					elseif density > 0 and density < TSTONE
 					and stable[si] >= STABLE and y > YSURFMIN then
 						if y <= YSAND then
 							data[vi] = c_sand
+							under[si] = 0
 						else
-							data[vi] = c_grass
+							data[vi] = c_dirt
+							under[si] = 1
 						end
-					elseif y > YSURFMIN and y <= YWAT then
+					elseif y > YSURFMIN and y <= YWATER then
 						data[vi] = c_water
 						stable[si] = 0
+						under[si] = 0
 					elseif y <= YLAVA then
 						data[vi] = c_lava
 						stable[si] = 0
-					else -- air
+						under[si] = 0
+					else -- air, possibly just above surface
+						if under[si] == 1 then
+							data[viu] = c_grass
+						end
 						stable[si] = 0
+						under[si] = 0
+					end
+				elseif y == y1 + 1 then
+					if density <= 0 and y > YWATER then -- air, possibly just above surface
+						if under[si] == 1 then
+							data[viu] = c_grass
+						end
 					end
 				end
 
