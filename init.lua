@@ -1,3 +1,7 @@
+-- 0.2.5
+-- paramtype = "light" for light sources
+-- "nolight" replaces set_lighting
+
 -- Parameters
 
 local TERSCA = 96
@@ -68,40 +72,24 @@ minetest.register_node("levels:dirt", {
 	sounds = default.node_sound_dirt_defaults(),
 })
 
--- Dummy lux ore so that lux ore light spread ABM only runs once per lux node
-minetest.register_node("levels:luxoff", {
-	description = "Dummy Lux Ore",
-	tiles = {"levels_luxore.png"},
-	light_source = 14,
-	groups = {immortal=1},
-	sounds = default.node_sound_glass_defaults(),
-})
-
 minetest.register_node("levels:luxore", {
 	description = "Lux Ore",
 	tiles = {"levels_luxore.png"},
+	paramtype = "light",
 	light_source = 14,
 	groups = {cracky=3},
 	sounds = default.node_sound_glass_defaults(),
 })
  
--- ABM to spread lux ore light
--- Luxoff is only placed above stone to stop droop when replaced with luxore:
--- .. and data[(vi - ystride)] == c_stone then
-
-minetest.register_abm({
-	nodenames = {"levels:luxoff"},
-	interval = 5,
-	chance = 1,
-	action = function(pos, node)
-		minetest.remove_node(pos)
-		minetest.place_node(pos, {name="levels:luxore"})
-	end,
-})
-
 -- Stuff
 
 local floatper = math.pi / FLOATPER
+
+-- Set mapgen parameters
+
+minetest.register_on_mapgen_init(function(mgparams)
+	minetest.set_mapgen_params({mgname="singlenode", flags="nolight"})
+end)
 
 -- Initialize noise objects to nil
 
@@ -131,7 +119,6 @@ minetest.register_on_generated(function(minp, maxp, seed)
 	
 	local c_grass  = minetest.get_content_id("levels:grass")
 	local c_dirt   = minetest.get_content_id("levels:dirt")
-	local c_luxoff = minetest.get_content_id("levels:luxoff")
 	local c_luxore = minetest.get_content_id("levels:luxore")
 
 	local sidelen = x1 - x0 + 1
@@ -203,7 +190,7 @@ minetest.register_on_generated(function(minp, maxp, seed)
 					if density >= TSTONE then
 						if math.random() < LUXCHA and y < YSURFMIN
 						and density < 0.01 and data[viu] == c_stone then
-							data[vi] = c_luxoff
+							data[vi] = c_luxore
 						else
 							data[vi] = c_stone
 						end
@@ -251,7 +238,6 @@ minetest.register_on_generated(function(minp, maxp, seed)
 	end
 	
 	vm:set_data(data)
-	vm:set_lighting({day=0, night=0})
 	vm:calc_lighting()
 	vm:write_to_map(data)
 	vm:update_liquids()
