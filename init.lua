@@ -1,6 +1,5 @@
--- 0.2.5
--- paramtype = "light" for light sources
--- "nolight" replaces set_lighting
+-- levels 0.2.6
+-- bugfixes: rename luxoff to luxore, remove 'local' from nobj_s
 
 -- Parameters
 
@@ -129,8 +128,8 @@ minetest.register_on_generated(function(minp, maxp, seed)
 	local minpos3d = {x=x0, y=y0-16, z=z0}
 	local minpos2d = {x=x0, y=z0}
 	
-	local nobj_terrain = nobj_terrain or minetest.get_perlin_map(np_terrain, chulens3d)
-	local nobj_spike = nobj_spike or minetest.get_perlin_map(np_spike, chulens2d)
+	nobj_terrain = nobj_terrain or minetest.get_perlin_map(np_terrain, chulens3d)
+	nobj_spike = nobj_spike or minetest.get_perlin_map(np_spike, chulens2d)
 	
 	local nvals_terrain = nobj_terrain:get3dMap_flat(minpos3d)
 	local nvals_spike = nobj_spike:get2dMap_flat(minpos2d)
@@ -182,7 +181,7 @@ minetest.register_on_generated(function(minp, maxp, seed)
 						or nodid == c_sand
 						or nodid == c_grass
 						or nodid == c_dirt
-						or nodid == c_luxoff then
+						or nodid == c_luxore then
 							stable[si] = STABLE
 						end
 					end
